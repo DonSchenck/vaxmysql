@@ -1,0 +1,1 @@
+ mysql -uroot -padmin < /tmp/create_table_vaccination_summaries.sql
