@@ -1,1 +1,1 @@
-mysql --user=root --password=admin < /tmp/create_database_vaxdb.sql
+mysql --user=root  < /tmp/create_database_vaxdb.sql

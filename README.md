@@ -3,7 +3,7 @@ To create the mariadb database:
 `kubectl apply -f mysql-secret.yaml`  
 `kubectl apply -f mysqlvolume.yaml`  
 `kubectl apply -f mysql-deployment.yaml` 
-`kubectl apply -f mysql-service.yaml`   
+`kubectl apply -f mysql_service.yaml`   
 
 
 To create the table "vaccination_summaries":  
@@ -34,3 +34,5 @@ export PODNAME="{mysql pod name from previous kubectl get pods command}"
 
 Expose service:  
 `kubectl expose deploy/mysql --name mysql --port 3306 --type NodePort`
+
+`GRANT ALL ON vaxdb.* to 'root'@'%' IDENTIFIED BY 'admin' WITH GRANT OPTION;`
