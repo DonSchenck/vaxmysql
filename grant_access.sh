@@ -1,0 +1,1 @@
+GRANT ALL ON vaxdb.* to 'root'@'%' IDENTIFIED BY 'admin' WITH GRANT OPTION;

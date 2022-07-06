@@ -1,9 +1,10 @@
 To create the mariadb database:  
 
-`kubectl apply -f mysql-secret.yaml`  
-`kubectl apply -f mysqlvolume.yaml`  
-`kubectl apply -f mysql-deployment.yaml`  
-`kubectl apply -f mysql_service.yaml`   
+`kubectl create -f mysql-secret.yaml`  
+`kubectl create -f mysqlvolume.yaml`  
+`kubectl create -f mysql-deployment.yaml`  
+`oc new-app -e MYSQL_USER=mydemo -e MYSQL_PASSWORD=mydemo -e MYSQL_DATABASE=vaxdb registry.access.redhat.com/rhscl/mariadb-101-rhel7 --name mysql`  
+`kubectl create -f mysql_service.yaml`   
 
 
 To create the table "vaccination_summaries":  
