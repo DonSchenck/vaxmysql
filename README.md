@@ -10,14 +10,16 @@ To create the mariadb database:
 To create the table "vaccination_summaries":  
 PowerShell:  
 `kubectl get pods`  
-$podname="{mysql pod name from previous kubectl get pods command}"  
+Use the output from this command to set the environment variable "$PODNAME".  
 
-`kubectl cp ./create_database_vaxdb.sql ${podname}:/tmp/create_database_vaxdb.sql`  
-`kubectl cp ./create_database.sh ${podname}:/tmp/create_database.sh`  
+`$PODNAME="{mysql pod name from previous kubectl get pods command}"`  
+
+`kubectl cp ./create_database_vaxdb.sql ${PODNAME}:/tmp/create_database_vaxdb.sql`  
+`kubectl cp ./create_database.sh ${PODNAME}:/tmp/create_database.sh`  
 `kubectl exec deploy/mysql -- /bin/bash ./tmp/create_database.sh`  
 
-`kubectl cp ./create_table_vaccination_summaries.sql ${podname}:/tmp/create_table_vaccination_summaries.sql`  
-`kubectl cp ./create_tables.sh ${podname}:/tmp/create_tables.sh`  
+`kubectl cp ./create_table_vaccination_summaries.sql ${PODNAME}:/tmp/create_table_vaccination_summaries.sql`  
+`kubectl cp ./create_tables.sh ${PODNAME}:/tmp/create_tables.sh`  
 `kubectl exec deploy/mysql -- /bin/bash ./tmp/create_tables.sh`  
 
 
@@ -34,7 +36,7 @@ export PODNAME="{mysql pod name from previous kubectl get pods command}"
 `kubectl exec deploy/mysql -- /bin/bash ./tmp/create_tables.sh`  
 
 Expose service:  
-`kubectl expose deploy/mysql --name mysql --port 3306 --type NodePort`
+`kubectl expose deploy/mariadb --name mariadb --port 3306 --type NodePort`
 
 `GRANT ALL ON vaxdb.* to 'root'@'%' IDENTIFIED BY 'admin' WITH GRANT OPTION;`
 # vac-seen-mariadb
@@ -47,9 +49,10 @@ At the end of this tutorial you will have an instance of a MariaDB database runn
 Even if you don't follow the activity associated with this repository, the code and instructions here can be a basis for your efforts to create a MariaDB instance in your Kubernetes or OpenShift cluster.  
 
 ## Prerequisites  
-The following prerequisites are necessary:  
+The following **three** prerequisites are necessary:  
 1. An account in [Developer Sandbox for Red Hat OpenShift](https://developers.redhat.com/developer-sandbox) (No problem; it's free). This is not actually *necessary*, since you can use this tutorial with any OpenShift cluster *as long as the Service Binding Operator is installed* (it's install in the Developer Sandbox).  If you don't have access to a cluster with the Service Binding Operator, or just want to experiment on your own, the Developer Sandbox is perfect.  
-1. The `oc` command-line tool for OpenShift. There are instructions later in this article for the installation of `oc`.
+1. The `oc` command-line tool for OpenShift. There are instructions later in this article for the installation of `oc`.  
+2. The `kubectl` command-line tool for Kubernetes. There are instructions later in this article for the installation of `kubectl`.  
 
 ## All Operating Systems Welcome  
 You can use this activity regardless of whether your PC runs Windows, Linux, or macOS.  
@@ -74,12 +77,15 @@ If you are using your own cluster, [the Service Binding Operator must be install
 ### 0.2 Install the 'oc' CLI  
 The `oc` command line interface (CLI) allows you to work with your OpenShift cluster from a terminal command line. The `oc` CLI for OpenShift can be installed by following the instructions on [the oc CLI Getting Started web page](https://docs.openshift.com/container-platform/4.9/cli_reference/openshift_cli/getting-started-cli.html).
 
+### 0.3 Install the 'kubectl' CLI  
+This `kubectl` CLI allows you to work with a Kubernetes cluster from a terminal command line. The `kubectl` CLI can be installed by following the instructions on [the kubectl installation page](https://kubernetes.io/docs/tasks/tools/).  
+
 ### 0.3 Log in to your sandbox from the command line
 Open a terminal session on your local machine and use the `oc login` command to log into your cluster from there. The instructions for doing that are in [this short article](https://developers.redhat.com/blog/2021/04/21/access-your-developer-sandbox-for-red-hat-openshift-from-the-command-line).  This can be done using macOS, Windows, and Linux.
 
 ## 1. Creating the Secret object used to access to database  
 
-When the database instance is being created, we have the opportunity to specify a root password. This password is stored in a Kubernetes Secret object, which we are calling "mariadbpassword". The password is created by taking the password ("admin" in thise case) and Base64-encoding it. The resulting string is then put into the YAML file for the secret. In this case, the YAML file is called "mariadb-secret.yaml".
+When the database instance is being created, we have the opportunity to specify a root password. This password is stored in a Kubernetes Secret object, which we are calling "mariadbpassword". The password is created by taking the password ("admin" in this case) and Base64-encoding it. The resulting string is then put into the YAML file for the secret. In this case, the YAML file is called "mariadb-secret.yaml".
 
 This has already been done, as we can see in the contents of the file "mariadb-secret.yaml":
 
@@ -93,7 +99,7 @@ data:
   password: YWRtaW4=
 ```
 
-The bash command to Base64-encode the string looks like the following:  
+Note: You don't need to do this, but the bash command to Base64-encode the string looks like the following:  
 
 `echo "admin" | base64`
 
@@ -107,9 +113,11 @@ $e =[Convert]::ToBase64String($b)
 ```
 
 Given that we have the correct YAML, create the secret by running the following command:  
-<h2>DO THIS:</h2>  
+___
+<h2>RUN THIS COMMAND:</h2>  
 
 `oc create -f mariadb-secret.yaml`
+___  
 
 ## 2. Creating a Persistent Volume Claim to store the database  
 Before we can create the database, we need a file system for the files related to the MariaDB instance. You *could* choose to use an ephemeral instance of MariaDB, but in that case the data would be destroyed when the pod running the instance is stopped. We want the data to persist, so we need a Persistent Volume Claim (PVC).
