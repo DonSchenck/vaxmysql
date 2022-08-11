@@ -65,7 +65,7 @@ Here's what you'll be doing:
 1. Creating a Service inside your cluster to allow your database to be used by other applications.  
 1. Copying scripts to create the database "vaxdb" in the MariaDB instance.  
 1. Copying scripts to create the table "vaccination_summaries" in the database.  
-1. Executing the scripts.  
+1. Proving the installation.  
 
 
 ## Step 0: Prepare the prerequisites
@@ -87,7 +87,7 @@ Open a terminal session on your local machine and use the `oc login` command to 
 
 When the database instance is being created, we have the opportunity to specify a root password. This password is stored in a Kubernetes Secret object, which we are calling "mariadbpassword". The password is created by taking the password ("admin" in this case) and Base64-encoding it. The resulting string is then put into the YAML file for the secret. In this case, the YAML file is called "mariadb-secret.yaml".
 
-This has already been done, as we can see in the contents of the file "mariadb-secret.yaml":
+This has already been done, as we can see in the content of the file "mariadb-secret.yaml":
 
 ```yaml
 apiVersion: v1
@@ -120,9 +120,9 @@ ___
 ___  
 
 ## 2. Creating a Persistent Volume Claim to store the database  
-Before we can create the database, we need a file system for the files related to the MariaDB instance. You *could* choose to use an ephemeral instance of MariaDB, but in that case the data would be destroyed when the pod running the instance is stopped. We want the data to persist, so we need a Persistent Volume Claim (PVC).
+Before we can create the database, we need a file system for the files related to the MariaDB instance. You *could* choose to use an ephemeral instance of MariaDB, but in that case the data would be destroyed when the pod running the instance is stopped — or *quiesces* (from the Latin, meaning "to become quiet"). We want the data to persist, so we need a Persistent Volume Claim (PVC).
 
-Here's the content of the YAML file that creates the PVC:
+Here's the content of the YAML file (mariadb-pvc.yaml in this repo) that defines the PVC:
 
 ```yaml
 apiVersion: v1
@@ -137,14 +137,16 @@ spec:
   accessModes:
     - ReadWriteOnce
 ```
-You can see that we are requesting a 5GB section of block storage, akin to a 5GB hard drive. The name, which as assigned by us, is used later by the Deployment object which creates the MariaDB instance.
+You can see that we are requesting a 5GB section of block storage, akin to a 5GB hard drive. The name, which is assigned by us, is used later by the Deployment object which creates the MariaDB instance.
 
-<h2>DO THIS:</h2>  
+___
+<h2>RUN THIS COMMAND:</h2>  
 
 `oc create -f mariadb-pvc.yaml`  
+___  
 
 ## 3. Creating an instance of a MariaDB database in your cluster  
-Now that we have the secret and PVC we need, we can go ahead and create the MariaDB instance. Here is the content of the YAML file that creates the MariaDB instance:  
+Now that we have the secret and PVC we need, we can go ahead and create the MariaDB instance. Here is the content of the YAML file (mariadb-deployment.yaml) that defines the MariaDB instance:  
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -186,17 +188,25 @@ spec:
 ```
 It's time to create the MariaDB instance.
 
-<h2>DO THIS:</h2>  
+___  
+<h2>RUN THIS COMMAND:</h2>  
 
 `oc create -f mariadb-deployment.yaml`  
+___  
 
 When this finishes, you will have a MariaDB instance running in your OpenShift cluster. We have not created a database, nor have we created any tables. But the database is up and running. You can prove this by using the following command (as an example):
 
+```bash
+: oc get pods
+NAME                      READY   STATUS    RESTARTS   AGE
+mariadb-fdc8bd4f4-8g9b9   1/1     Running   0          112m
+```
+Of course, the name of the pod **you** have running will be differnt.
 
 ## 4. Creating a Service inside your cluster to allow your database to be used by other applications  
 We need a Service object which allows applications to use the MariaDB instance. I've named the object "mariadb", but the name *does not* need to match the application.
 
-Here's the YAML file, "mariadb-service.yaml", that creates the service:
+Here's the content of the YAML file (mariadb-service.yaml) that defines the service:
 ```yaml
 apiVersion: v1
 kind: Service
@@ -210,32 +220,92 @@ spec:
       port: 3306
       targetPort: 3306
 ```
-<h2>DO THIS:</h2>  
+___
+<h2>RUN THIS COMMAND:</h2>  
 
 `oc create -f mariadb-service.yaml`  
+___
 
 Now, any application can refer to the data by the service name, "mariadb". Here's an example of that in an environment variable connection string:  
 
 ```bash
 MYSQL_CONNECTION_STRING="Server=mariadb;User ID=root;Password={admin_password};Database=vaxdb;"
 ```
-
-
-
 ## 5. Copying scripts to create the database "vaxdb" in the MariaDB instance  
+I like to use scripts to build my database and tables because, as a developer, I feel more "in control" and I feel like I'm using my coding skills. This is a personal preference.
 
-To create the table "vaccination_summaries":  
-PowerShell:  
-`kubectl get pods`  
-$podname="{mysql pod name from previous kubectl get pods command}"  
+In this section, we repeat a pattern:  
+1. Copy a SQL command file (\*.sql) into the pod running MariaDB  
+2. Copy a shell command script (\*.sh) into the pod running MariaDB  
+3. Execute the \*.sh shell command script inside the pod.
 
-`kubectl cp ./create_database_vaxdb.sql ${podname}:/tmp/create_database_vaxdb.sql`  
-`kubectl cp ./create_database.sh ${podname}:/tmp/create_database.sh`  
-`kubectl exec deploy/mysql -- /bin/bash ./tmp/create_database.sh`  
+To begin, we need to create our database, "vaxdb".
+
+The first step is to get the name of the pod running MariaDB, and store that name in a local environment variable ($PODNAME) that we'll be using in our commands.
+
+___
+<h2>RUN THIS COMMAND:</h2>  
+
+`kubectl get pods -l app=mariadb`
+___
+
+You will output similar to the following:
+```bash
+: oc get pods -l app=mariadb
+NAME                      READY   STATUS    RESTARTS   AGE
+mariadb-fdc8bd4f4-kplsx   1/1     Running   0          79s
+```
+Now, put that name value into an environment variable.
+___
+<h2>RUN THIS COMMAND IF YOU ARE USING Bash:</h2>  
+
+`export PODNAME="mariadb-fdc8bd4f4-kplsx"`  
+Of course, use the name of **your** pod in the above command.
+___
+___
+<h2>RUN THIS COMMAND IF YOU ARE USING PowerShell:</h2>  
+
+`$PODNAME="mariadb-fdc8bd4f4-kplsx"`  
+Of course, use the name of **your** pod in the above command.
+___
+The following series of commands will copy an SQL statement (in a file), and a command to run that statement, into the pod running MariaDB. Third statement will execute the statement inside the pod.
+___
+<h2>RUN THESE THREE COMMANDS IF YOU ARE USING Bash:</h2>  
+
+`kubectl cp ./create_database_vaxdb.sql $PODNAME:/tmp/create_database_vaxdb.sql`  
+
+`kubectl cp ./create_database.sh $PODNAME:/tmp/create_database.sh`  
+
+`kubectl exec deploy/mariadb -- /bin/bash ./tmp/create_database.sh`  
+___  
+___
+<h2>RUN THESE THREE COMMANDS IF YOU ARE USING PowerShell:</h2>  
+
+`kubectl cp ./create_database_vaxdb.sql ${PODNAME}:/tmp/create_database_vaxdb.sql`  
+
+`kubectl cp ./create_database.sh ${PODNAME}:/tmp/create_database.sh`  
+
+`kubectl exec deploy/mariadb -- /bin/bash ./tmp/create_database.sh`  
+___  
 
 ## 6. Copying scripts to create the table "vaccination_summaries" in the database  
- 
-## 7. Executing the scripts  
+Using the same copy-copy-execute pattern, it is now time to build an empty table in our database.
+___
+<h2>RUN THESE THREE COMMANDS IF YOU ARE USING Bash:</h2>  
+
+`kubectl cp ./create_table_vaccination_summaries.sql $PODNAME:/tmp/create_table_vaccination_summaries.sql`  
+`kubectl cp ./create_tables.sh $PODNAME:/tmp/create_tables.sh`  
+`kubectl exec deploy/mariadb -- /bin/bash ./tmp/create_tables.sh`  
+___
+___
+<h2>RUN THESE THREE COMMANDS IF YOU ARE USING PowerShell:</h2>  
+
+`kubectl cp ./create_table_vaccination_summaries.sql ${podname}:/tmp/create_table_vaccination_summaries.sql`  
+`kubectl cp ./create_tables.sh ${podname}:/tmp/create_tables.sh`  
+`kubectl exec deploy/mariadb -- /bin/bash ./tmp/create_tables.sh `  
+___
+
+## 7. Proving the installation  
 
 ## Congratulations
 You have a MariaDB database instance running in OpenShift.
